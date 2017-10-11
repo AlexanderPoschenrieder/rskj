@@ -19,7 +19,7 @@
 package org.ethereum.rpc;
 
 import co.rsk.blockchain.utils.BlockGenerator;
-import co.rsk.config.RskSystemProperties;
+import co.rsk.config.ConfigUtils;
 import co.rsk.core.bc.BlockChainStatus;
 import co.rsk.mine.MinerClientImpl;
 import co.rsk.mine.MinerManagerTest;
@@ -172,7 +172,7 @@ public class Web3ImplSnapshotTest {
         BlockValidationRule rule = new MinerManagerTest.BlockValidationRuleDummy();
 
         MinerServerImpl minerServer;
-        minerServer = new MinerServerImpl(ethereum, world.getBlockChain(), world.getBlockChain().getBlockStore(), world.getBlockChain().getPendingState(), world.getBlockChain().getRepository(), RskSystemProperties.CONFIG, rule);
+        minerServer = new MinerServerImpl(ethereum, world.getBlockChain(), world.getBlockChain().getBlockStore(), world.getBlockChain().getPendingState(), world.getBlockChain().getRepository(), ConfigUtils.getDefaultMiningConfig(), rule);
         minerClient.setMinerServer(minerServer);
 
         worldManager.minerClient = minerClient;
