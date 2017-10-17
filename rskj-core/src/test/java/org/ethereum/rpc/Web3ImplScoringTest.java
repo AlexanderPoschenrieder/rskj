@@ -19,7 +19,7 @@
 package org.ethereum.rpc;
 
 import co.rsk.config.RskSystemProperties;
-import co.rsk.core.Wallet;
+import co.rsk.core.WalletFactory;
 import co.rsk.net.NodeID;
 import co.rsk.scoring.EventType;
 import co.rsk.scoring.PeerScoringInformation;
@@ -312,7 +312,7 @@ public class Web3ImplScoringTest {
         worldManager.setBlockchain(world.getBlockChain());
         rsk.worldManager = worldManager;
 
-        Web3Impl web3 = new Web3Impl(rsk, RskSystemProperties.CONFIG, new Wallet());
+        Web3Impl web3 = new Web3Impl(rsk, RskSystemProperties.CONFIG, WalletFactory.createWallet());
 
         return web3;
     }

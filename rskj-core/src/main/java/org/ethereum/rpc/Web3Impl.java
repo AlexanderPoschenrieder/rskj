@@ -20,9 +20,9 @@ package org.ethereum.rpc;
 
 import co.rsk.config.RskSystemProperties;
 import co.rsk.config.WalletAccount;
+import co.rsk.core.Wallet;
 import co.rsk.core.Rsk;
 import co.rsk.core.SnapshotManager;
-import co.rsk.core.Wallet;
 import co.rsk.mine.MinerManager;
 import co.rsk.net.BlockProcessor;
 import co.rsk.peg.Bridge;

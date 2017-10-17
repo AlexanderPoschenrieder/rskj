@@ -19,8 +19,7 @@
 package co.rsk;
 
 import co.rsk.config.RskSystemProperties;
-import co.rsk.core.Rsk;
-import co.rsk.core.RskFactory;
+import co.rsk.core.*;
 import co.rsk.mine.TxBuilder;
 import co.rsk.mine.TxBuilderEx;
 import co.rsk.net.Metrics;
@@ -87,7 +86,15 @@ public class Start {
 
         if (RskSystemProperties.CONFIG.isRpcEnabled()) {
             logger.info("RPC enabled");
-            enableRpc(rsk);
+
+            if (RskSystemProperties.CONFIG.isWalletEnabled()) {
+                logger.info("Local wallet enabled");
+                enableRpc(rsk, WalletFactory.createPersistentWallet());
+            }
+            else {
+                logger.info("Local wallet disabled");
+                enableRpc(rsk, WalletFactory.createDisabledWallet());
+            }
         }
         else {
             logger.info("RPC disabled");
@@ -115,8 +122,8 @@ public class Start {
         udpServer.start();
     }
 
-    private void enableRpc(Rsk rsk) throws Exception {
-        Web3 web3Service = new Web3RskImpl(rsk);
+    private void enableRpc(Rsk rsk, Wallet wallet) throws Exception {
+        Web3 web3Service = new Web3RskImpl(rsk, RskSystemProperties.CONFIG, wallet);
         JsonRpcWeb3ServerHandler serverHandler = new JsonRpcWeb3ServerHandler(web3Service, RskSystemProperties.CONFIG.getRpcModules());
         new JsonRpcNettyServer(
             RskSystemProperties.CONFIG.rpcPort(),

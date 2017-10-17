@@ -20,9 +20,8 @@ package co.rsk.rpc;
 
 import co.rsk.config.RskMiningConstants;
 import co.rsk.config.RskSystemProperties;
-import co.rsk.core.Rsk;
 import co.rsk.core.Wallet;
-import co.rsk.core.WalletFactory;
+import co.rsk.core.Rsk;
 import co.rsk.mine.MinerServer;
 import co.rsk.mine.MinerWork;
 import org.apache.commons.lang3.ArrayUtils;
@@ -52,12 +51,8 @@ public class Web3RskImpl extends Web3Impl {
 
     MinerServer minerServer;
 
-    public Web3RskImpl(Rsk rsk) {
-        this(rsk, WalletFactory.createPersistentWallet());
-    }
-
-    public Web3RskImpl(Rsk rsk, Wallet wallet) {
-        super(rsk, RskSystemProperties.CONFIG, wallet);
+    public Web3RskImpl(Rsk rsk, RskSystemProperties properties, Wallet wallet) {
+        super(rsk, properties, wallet);
     }
 
     public MinerWork mnr_getWork() {

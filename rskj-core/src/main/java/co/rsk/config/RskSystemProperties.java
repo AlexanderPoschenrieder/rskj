@@ -118,6 +118,10 @@ public class RskSystemProperties extends SystemProperties {
                 config.getInt("rpc.port") : 4444;
     }
 
+    public boolean isWalletEnabled() {
+        return config.hasPath("wallet.enabled");
+    }
+
     public List<WalletAccount> walletAccounts() {
         if (!config.hasPath("wallet.accounts"))
             return Collections.EMPTY_LIST;

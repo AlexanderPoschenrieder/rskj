@@ -18,12 +18,10 @@
 
 package co.rsk.core;
 
+import org.ethereum.datasource.HashMapDB;
 import org.ethereum.datasource.KeyValueDataSource;
 import org.ethereum.datasource.LevelDbDataSource;
 
-/**
- * Created by mario on 06/12/16.
- */
 public class WalletFactory {
 
     public static Wallet createPersistentWallet() {
@@ -31,15 +29,17 @@ public class WalletFactory {
     }
 
     public static Wallet createPersistentWallet(String storeName) {
-        Wallet wallet = new Wallet();
         KeyValueDataSource ds = new LevelDbDataSource(storeName);
         ds.init();
-        wallet.setStore(ds);
-        return wallet;
+        return new LocalWallet(ds);
+    }
+
+    public static Wallet createDisabledWallet() {
+        return new DisabledWallet();
     }
 
     public static Wallet createWallet() {
-        return new Wallet();
+        return new LocalWallet(new HashMapDB());
     }
 
 
