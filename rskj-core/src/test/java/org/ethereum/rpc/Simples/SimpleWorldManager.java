@@ -47,6 +47,14 @@ public class SimpleWorldManager implements WorldManager {
     BlockStore blockStore;
     EthereumListener listener;
 
+    public SimpleWorldManager() {
+        this(null);
+    }
+
+    public SimpleWorldManager(PendingState pendingState) {
+        this.pendingState = pendingState;
+    }
+
     @Override
     public void init() {
 

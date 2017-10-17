@@ -19,13 +19,17 @@
 package co.rsk;
 
 import co.rsk.config.RskSystemProperties;
-import co.rsk.core.*;
+import co.rsk.core.Rsk;
+import co.rsk.core.RskFactory;
+import co.rsk.core.Wallet;
+import co.rsk.core.WalletFactory;
 import co.rsk.mine.TxBuilder;
 import co.rsk.mine.TxBuilderEx;
 import co.rsk.net.Metrics;
 import co.rsk.net.discovery.UDPServer;
 import co.rsk.rpc.CorsConfiguration;
 import co.rsk.rpc.Web3RskImpl;
+import co.rsk.rpc.modules.*;
 import org.ethereum.cli.CLIInterface;
 import org.ethereum.config.DefaultConfig;
 import org.ethereum.rpc.JsonRpcNettyServer;
@@ -86,15 +90,7 @@ public class Start {
 
         if (RskSystemProperties.CONFIG.isRpcEnabled()) {
             logger.info("RPC enabled");
-
-            if (RskSystemProperties.CONFIG.isWalletEnabled()) {
-                logger.info("Local wallet enabled");
-                enableRpc(rsk, WalletFactory.createPersistentWallet());
-            }
-            else {
-                logger.info("Local wallet disabled");
-                enableRpc(rsk, WalletFactory.createDisabledWallet());
-            }
+            enableRpc(rsk);
         }
         else {
             logger.info("RPC disabled");
@@ -122,8 +118,30 @@ public class Start {
         udpServer.start();
     }
 
-    private void enableRpc(Rsk rsk, Wallet wallet) throws Exception {
-        Web3 web3Service = new Web3RskImpl(rsk, RskSystemProperties.CONFIG, wallet);
+    private void enableRpc(Rsk rsk) throws Exception {
+        Wallet wallet;
+        EthModule ethModule;
+        PersonalModule personalModule;
+        if (RskSystemProperties.CONFIG.isWalletEnabled()) {
+            logger.info("Local wallet enabled");
+            wallet = WalletFactory.createPersistentWallet();
+            ethModule = new EthModuleWithWallet(rsk, wallet);
+            personalModule = new PersonalModuleWithWallet(rsk, wallet);
+        }
+        else {
+            logger.info("Local wallet disabled");
+            wallet = WalletFactory.createDisabledWallet();
+            ethModule = new EthModuleWithoutWallet(rsk);
+            personalModule = new PersonalModuleWithoutWallet();
+        }
+
+        Web3 web3Service = new Web3RskImpl(
+                rsk,
+                RskSystemProperties.CONFIG,
+                wallet,
+                personalModule,
+                ethModule
+        );
         JsonRpcWeb3ServerHandler serverHandler = new JsonRpcWeb3ServerHandler(web3Service, RskSystemProperties.CONFIG.getRpcModules());
         new JsonRpcNettyServer(
             RskSystemProperties.CONFIG.rpcPort(),

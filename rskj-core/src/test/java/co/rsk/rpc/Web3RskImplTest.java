@@ -19,10 +19,12 @@
 package co.rsk.rpc;
 
 import co.rsk.config.RskSystemProperties;
-import co.rsk.core.Wallet;
-import co.rsk.peg.PegTestUtils;
 import co.rsk.core.NetworkStateExporter;
 import co.rsk.core.Rsk;
+import co.rsk.core.Wallet;
+import co.rsk.peg.PegTestUtils;
+import co.rsk.rpc.modules.EthModuleWithWallet;
+import co.rsk.rpc.modules.PersonalModuleWithWallet;
 import org.ethereum.core.Block;
 import org.ethereum.core.Blockchain;
 import org.ethereum.core.Transaction;
@@ -64,7 +66,8 @@ public class Web3RskImplTest {
         Mockito.when(blockchain.getBestBlock()).thenReturn(block);
         Mockito.when(rsk.getWorldManager()).thenReturn(worldManager);
 
-        Web3RskImpl web3 = new Web3RskImpl(rsk, RskSystemProperties.CONFIG, Mockito.mock(Wallet.class));
+        Wallet wallet = Mockito.mock(Wallet.class);
+        Web3RskImpl web3 = new Web3RskImpl(rsk, RskSystemProperties.CONFIG, wallet, new PersonalModuleWithWallet(rsk, wallet), new EthModuleWithWallet(rsk, wallet));
         web3.ext_dumpState();
     }
 

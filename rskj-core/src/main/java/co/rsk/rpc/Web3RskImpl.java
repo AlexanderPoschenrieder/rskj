@@ -21,14 +21,16 @@ package co.rsk.rpc;
 import co.rsk.config.RskMiningConstants;
 import co.rsk.config.RskSystemProperties;
 import co.rsk.core.Wallet;
-import co.rsk.core.Rsk;
 import co.rsk.mine.MinerServer;
 import co.rsk.mine.MinerWork;
+import co.rsk.rpc.modules.EthModule;
+import co.rsk.rpc.modules.PersonalModule;
 import org.apache.commons.lang3.ArrayUtils;
 import org.ethereum.core.Block;
 import org.ethereum.core.BlockHeader;
 import org.ethereum.crypto.SHA3Helper;
 import org.ethereum.db.BlockStore;
+import org.ethereum.facade.Ethereum;
 import org.ethereum.rpc.TypeConverter;
 import org.ethereum.rpc.Web3Impl;
 import org.slf4j.Logger;
@@ -51,8 +53,8 @@ public class Web3RskImpl extends Web3Impl {
 
     MinerServer minerServer;
 
-    public Web3RskImpl(Rsk rsk, RskSystemProperties properties, Wallet wallet) {
-        super(rsk, properties, wallet);
+    public Web3RskImpl(Ethereum eth, RskSystemProperties properties, Wallet wallet, PersonalModule personalModule, EthModule ethModule) {
+        super(eth, properties, wallet, personalModule, ethModule);
     }
 
     public MinerWork mnr_getWork() {

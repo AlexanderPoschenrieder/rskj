@@ -11,6 +11,11 @@ public class DisabledWallet implements Wallet {
     }
 
     @Override
+    public String[] getAccountAddressesAsHex() {
+        throw new DisabledWalletException();
+    }
+
+    @Override
     public byte[] addAccount() {
         throw new DisabledWalletException();
     }

@@ -19,24 +19,23 @@
 package org.ethereum.rpc;
 
 import co.rsk.config.RskSystemProperties;
-import co.rsk.config.WalletAccount;
-import co.rsk.core.Wallet;
 import co.rsk.core.Rsk;
 import co.rsk.core.SnapshotManager;
+import co.rsk.core.Wallet;
 import co.rsk.mine.MinerManager;
 import co.rsk.net.BlockProcessor;
 import co.rsk.peg.Bridge;
 import co.rsk.peg.BridgeState;
 import co.rsk.peg.BridgeStateReader;
 import co.rsk.rpc.ModuleDescription;
+import co.rsk.rpc.modules.EthModule;
 import co.rsk.rpc.modules.PersonalModule;
+import co.rsk.rpc.modules.PersonalModuleWithWallet;
 import co.rsk.scoring.InvalidInetAddressException;
 import co.rsk.scoring.PeerScoringInformation;
 import co.rsk.scoring.PeerScoringManager;
 import com.google.common.annotations.VisibleForTesting;
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.map.HashedMap;
-import org.ethereum.config.blockchain.RegTestConfig;
 import org.ethereum.core.*;
 import org.ethereum.crypto.ECKey;
 import org.ethereum.crypto.HashUtil;
@@ -59,7 +58,6 @@ import org.ethereum.rpc.exception.JsonRpcUnimplementedMethodException;
 import org.ethereum.solidity.compiler.SolidityCompiler;
 import org.ethereum.util.BuildInfo;
 import org.ethereum.vm.DataWord;
-import org.ethereum.vm.GasCost;
 import org.ethereum.vm.LogInfo;
 import org.ethereum.vm.PrecompiledContracts;
 import org.ethereum.vm.program.ProgramResult;
@@ -105,6 +103,7 @@ public class Web3Impl implements Web3 {
     private PeerScoringManager peerScoringManager;
 
     private PersonalModule personalModule;
+    private EthModule ethModule;
 
     // Kept for testing purposes
     public Web3Impl(SolidityCompiler compiler, Wallet wallet) {
@@ -116,20 +115,16 @@ public class Web3Impl implements Web3 {
         this.solidityCompiler = compiler;
         this.wallet = wallet;
         this.eth = eth;
-        this.personalModule = new PersonalModule(eth, wallet);
+        this.personalModule = new PersonalModuleWithWallet(eth, wallet);
     }
 
-    // Create with default modules, but we expect to inject them in the future
-    public Web3Impl(Ethereum eth, RskSystemProperties properties, Wallet wallet) {
-        this(eth, properties, wallet, new PersonalModule(eth, wallet));
-    }
-
-    private Web3Impl(Ethereum eth, RskSystemProperties properties, Wallet wallet, PersonalModule personalModule) {
+    protected Web3Impl(Ethereum eth, RskSystemProperties properties, Wallet wallet, PersonalModule personalModule, EthModule ethModule) {
         this.eth = eth;
         this.worldManager = eth.getWorldManager();
         this.repository = eth.getRepository();
         this.wallet = wallet;
         this.personalModule = personalModule;
+        this.ethModule = ethModule;
 
         if (eth instanceof Rsk)
             this.peerScoringManager = ((Rsk) eth).getPeerScoringManager();
@@ -143,20 +138,7 @@ public class Web3Impl implements Web3 {
         compositeEthereumListener.addListener(this.setupListener());
 
         this.eth.addListener(compositeEthereumListener);
-
-        // TODO adding default accounts, just so that integration tests pass
-        if (properties.getBlockchainConfig() instanceof RegTestConfig) {
-            personal_newAccountWithSeed("cow");
-        }
-
-        String secret = properties.coinbaseSecret();
-        personal_newAccountWithSeed(secret);
-
-        // initializes wallet accounts based on configuration
-        List<WalletAccount> accs = properties.walletAccounts();
-
-        for (WalletAccount acc : accs)
-            this.wallet.addAccountWithPrivateKey(Hex.decode(acc.getPrivateKey()));
+        personalModule.init(properties);
     }
 
     public EthereumListener setupListener() {
@@ -206,25 +188,6 @@ public class Web3Impl implements Web3 {
             throw new Exception("Incorrect hex syntax");
         x = x.substring(2);
         return x;
-    }
-
-    public String[] toJsonHexArray(Collection<String> c) {
-        String[] arr = new String[c.size()];
-        int i = 0;
-        for (String item : c) {
-            arr[i++] = toJsonHex(item);
-        }
-        return arr;
-    }
-
-    public String[] listObjectHashtoJsonHexArray(Collection<SerializableObject> c) {
-        String[] arr = new String[c.size()];
-        int i = 0;
-        for (SerializableObject item : c) {
-            // Todo: Which hash is required? RawHash or Hash ?
-            arr[i++] = toJsonHex(item.getHash());
-        }
-        return arr;
     }
 
     public String web3_clientVersion() {
@@ -414,14 +377,7 @@ public class Web3Impl implements Web3 {
     }
 
     public String[] eth_accounts() {
-        String[] s = null;
-        try {
-            return s = personal_listAccounts();
-        } finally {
-            if (logger.isDebugEnabled()) {
-                logger.debug("eth_accounts(): " + Arrays.toString(s));
-            }
-        }
+        return ethModule.accounts();
     }
 
     public String eth_blockNumber() {
@@ -599,19 +555,20 @@ public class Web3Impl implements Web3 {
     public String eth_sign(String addr, String data) throws Exception {
         String s = null;
         try {
-            return s = this.sign(data, getAccount(JSonHexToHex(addr)));
+            Account account = getAccount(JSonHexToHex(addr));
+            if (account == null)
+                throw new JsonRpcInvalidParamException("Account not found");
+
+            return s = this.sign(data, account.getEcKey());
         } finally {
             if (logger.isDebugEnabled())
                 logger.debug("eth_sign({}, {}): {}", addr, data, s);
         }
     }
 
-    private String sign(String data, Account account) {
-        if (account == null)
-            throw new JsonRpcInvalidParamException("Account not found");
-
+    private String sign(String data, ECKey ecKey) {
         byte[] dataHash = TypeConverter.stringHexToByteArray(data);
-        ECKey.ECDSASignature signature = account.getEcKey().sign(dataHash);
+        ECKey.ECDSASignature signature = ecKey.sign(dataHash);
 
         String signatureAsString = signature.r.toString() + signature.s.toString() + signature.v;
 
@@ -620,37 +577,7 @@ public class Web3Impl implements Web3 {
     }
 
     public String eth_sendTransaction(CallArguments args) throws Exception {
-        return this.sendTransaction(args, this.getAccount(args.from));
-    }
-
-    private String sendTransaction(CallArguments args, Account account) throws Exception {
-        String s = null;
-        try {
-            if (account == null)
-                throw new JsonRpcInvalidParamException("From address private key could not be found in this node");
-
-            String toAddress = args.to != null ? Hex.toHexString(stringHexToByteArray(args.to)) : null;
-
-            BigInteger value = args.value != null ? TypeConverter.stringNumberAsBigInt(args.value) : BigInteger.ZERO;
-            BigInteger gasPrice = args.gasPrice != null ? TypeConverter.stringNumberAsBigInt(args.gasPrice) : BigInteger.ZERO;
-            BigInteger gasLimit = args.gas != null ? TypeConverter.stringNumberAsBigInt(args.gas) : BigInteger.valueOf(GasCost.TRANSACTION_DEFAULT);
-
-            if (args.data != null && args.data.startsWith("0x"))
-                args.data = args.data.substring(2);
-
-            PendingState pendingState = worldManager.getPendingState();
-            synchronized (pendingState) {
-                BigInteger accountNonce = args.nonce != null ? TypeConverter.stringNumberAsBigInt(args.nonce) : (pendingState.getRepository().getNonce(account.getAddress()));
-                Transaction tx = Transaction.create(toAddress, value, accountNonce, gasPrice, gasLimit, args.data);
-                tx.sign(account.getEcKey().getPrivKeyBytes());
-                eth.submitTransaction(tx.toImmutableTransaction());
-                s = TypeConverter.toJsonHex(tx.getHash());
-            }
-            return s;
-        } finally {
-            if (logger.isDebugEnabled())
-                logger.debug("eth_sendTransaction({}): {}", args, s);
-        }
+        return this.ethModule.sendTransaction(args);
     }
 
     public String eth_sendRawTransaction(String rawData) throws Exception {
@@ -688,16 +615,11 @@ public class Web3Impl implements Web3 {
     }
 
     public String eth_call(CallArguments args, String bnOrId) throws Exception {
-        if (!bnOrId.equals("latest"))
-            throw new JsonRpcUnimplementedMethodException("Method only supports 'latest' as a parameter so far.");
-
-        ProgramResult res = createCallTxAndExecute(args, this.getKeyToSign(args.from));
-        return toJsonHex(res.getHReturn());
+        return ethModule.call(args, bnOrId);
     }
 
     public String eth_estimateGas(CallArguments args) throws Exception {
-        ProgramResult res = createCallTxAndExecute(args, this.getKeyToSign(args.from));
-        return toJsonHex(res.getGasUsed());
+        return ethModule.estimateGas(args);
     }
 
     public BlockInformationResult getBlockInformationResult(BlockInformation blockInformation) {
@@ -1439,16 +1361,6 @@ public class Web3Impl implements Web3 {
         return state.stateToMap();
     }
 
-    private Account getDefaultAccount() {
-        List<byte[]> accountAddresses = this.wallet.getAccountAddresses();
-
-        if (!CollectionUtils.isEmpty(accountAddresses)) {
-            return this.wallet.getAccount(accountAddresses.get(0));
-        }
-
-        return null;
-    }
-
     @VisibleForTesting
     public Account getAccount(String address) {
         return this.wallet.getAccount(stringHexToByteArray(address));
@@ -1457,18 +1369,6 @@ public class Web3Impl implements Web3 {
     @VisibleForTesting
     public Account getAccount(String address, String passphrase) {
         return this.wallet.getAccount(stringHexToByteArray(address), passphrase);
-    }
-
-    private byte[] getKeyToSign(String address) {
-        byte[] privateKey = new byte[32];
-
-        Account account;
-        account = (address != null) ? this.wallet.getAccount(stringHexToByteArray(address)) : this.getDefaultAccount();
-
-        if (account != null)
-            privateKey = account.getEcKey().getPrivKeyBytes();
-
-        return privateKey;
     }
 
     @Override

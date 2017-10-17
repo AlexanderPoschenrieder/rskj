@@ -19,17 +19,22 @@
 package org.ethereum.rpc;
 
 import co.rsk.config.RskSystemProperties;
+import co.rsk.core.Wallet;
 import co.rsk.core.WalletFactory;
 import co.rsk.core.bc.PendingStateImpl;
+import co.rsk.rpc.Web3RskImpl;
+import co.rsk.rpc.modules.EthModuleWithWallet;
+import co.rsk.rpc.modules.PersonalModuleWithWallet;
 import co.rsk.test.World;
 import co.rsk.test.builders.AccountBuilder;
 import co.rsk.test.builders.BlockBuilder;
 import co.rsk.test.builders.TransactionBuilder;
 import org.ethereum.core.*;
+import org.ethereum.facade.Ethereum;
 import org.ethereum.facade.Repository;
-import org.ethereum.rpc.dto.TransactionReceiptDTO;
 import org.ethereum.rpc.Simples.SimpleEthereum;
 import org.ethereum.rpc.Simples.SimpleWorldManager;
+import org.ethereum.rpc.dto.TransactionReceiptDTO;
 import org.junit.Assert;
 import org.junit.Test;
 import org.spongycastle.util.encoders.Hex;
@@ -79,7 +84,7 @@ public class Web3ImplLogsTest {
         SimpleEthereum eth = new SimpleEthereum();
         eth.repository = (Repository) world.getBlockChain().getRepository();
         eth.worldManager = worldManager;
-        Web3Impl web3 = new Web3Impl(eth, RskSystemProperties.CONFIG, WalletFactory.createPersistentWallet());
+        Web3Impl web3 = createWeb3(eth, WalletFactory.createPersistentWallet());
 
         // TODO tricky link to listener
         world.getBlockChain().setListener(web3.setupListener());
@@ -286,7 +291,7 @@ public class Web3ImplLogsTest {
         SimpleEthereum eth = new SimpleEthereum();
         eth.repository = (Repository) world.getBlockChain().getRepository();
         eth.worldManager = worldManager;
-        Web3Impl web3 = new Web3Impl(eth, RskSystemProperties.CONFIG, WalletFactory.createPersistentWallet("testwallet"));
+        Web3Impl web3 = createWeb3(eth, WalletFactory.createPersistentWallet("testwallet"));
 
         // TODO tricky link to listener
         world.getBlockChain().setListener(web3.setupListener());
@@ -327,7 +332,7 @@ public class Web3ImplLogsTest {
         SimpleEthereum eth = new SimpleEthereum();
         eth.repository = (Repository) world.getBlockChain().getRepository();
         eth.worldManager = worldManager;
-        Web3Impl web3 = new Web3Impl(eth, RskSystemProperties.CONFIG, WalletFactory.createPersistentWallet("testwallet2"));
+        Web3Impl web3 = createWeb3(eth, WalletFactory.createPersistentWallet("testwallet2"));
 
         // TODO tricky link to listener
         world.getBlockChain().setListener(web3.setupListener());
@@ -384,7 +389,7 @@ public class Web3ImplLogsTest {
         SimpleEthereum eth = new SimpleEthereum();
         eth.repository = (Repository) world.getBlockChain().getRepository();
         eth.worldManager = worldManager;
-        Web3Impl web3 = new Web3Impl(eth, RskSystemProperties.CONFIG, WalletFactory.createPersistentWallet("testwallet3"));
+        Web3Impl web3 = createWeb3(eth, WalletFactory.createPersistentWallet("testwallet3"));
 
         // TODO tricky link to listener
         world.getBlockChain().setListener(web3.setupListener());
@@ -433,6 +438,10 @@ public class Web3ImplLogsTest {
             if (k % 2 == 0 || k == 4)
                 Assert.assertEquals("0x" + mainAddress, ((LogFilterElement)log).address);
         }
+    }
+
+    private Web3Impl createWeb3(Ethereum eth, Wallet wallet) {
+        return new Web3RskImpl(eth, RskSystemProperties.CONFIG, wallet, new PersonalModuleWithWallet(eth, wallet), new EthModuleWithWallet(eth, wallet));
     }
 
     private Web3Impl getWeb3() {

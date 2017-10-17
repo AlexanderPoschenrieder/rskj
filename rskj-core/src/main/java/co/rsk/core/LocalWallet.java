@@ -26,6 +26,7 @@ import org.ethereum.crypto.ECKey;
 import org.ethereum.crypto.SHA3Helper;
 import org.ethereum.datasource.KeyValueDataSource;
 import org.ethereum.db.ByteArrayWrapper;
+import org.ethereum.rpc.TypeConverter;
 import org.spongycastle.crypto.params.KeyParameter;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -63,6 +64,13 @@ public class LocalWallet implements Wallet {
         }
 
         return addresses;
+    }
+
+    @Override
+    public String[] getAccountAddressesAsHex() {
+        return getAccountAddresses().stream()
+                .map(TypeConverter::toJsonHex)
+                .toArray(String[]::new);
     }
 
     @Override

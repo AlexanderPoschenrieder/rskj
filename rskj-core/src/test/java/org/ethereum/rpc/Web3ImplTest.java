@@ -19,9 +19,13 @@
 package org.ethereum.rpc;
 
 import co.rsk.config.RskSystemProperties;
+import co.rsk.core.Wallet;
 import co.rsk.core.WalletFactory;
 import co.rsk.core.bc.PendingStateImpl;
 import co.rsk.net.simples.SimpleBlockProcessor;
+import co.rsk.rpc.Web3RskImpl;
+import co.rsk.rpc.modules.EthModuleWithWallet;
+import co.rsk.rpc.modules.PersonalModuleWithWallet;
 import co.rsk.test.World;
 import co.rsk.test.builders.AccountBuilder;
 import co.rsk.test.builders.BlockBuilder;
@@ -32,29 +36,25 @@ import org.ethereum.crypto.ECKey;
 import org.ethereum.crypto.SHA3Helper;
 import org.ethereum.facade.Ethereum;
 import org.ethereum.facade.Repository;
+import org.ethereum.rpc.Simples.*;
 import org.ethereum.rpc.dto.CompilationResultDTO;
 import org.ethereum.rpc.dto.TransactionReceiptDTO;
 import org.ethereum.rpc.dto.TransactionResultDTO;
-import org.ethereum.rpc.Simples.*;
 import org.ethereum.rpc.exception.JsonRpcInvalidParamException;
 import org.ethereum.solidity.compiler.SolidityCompiler;
 import org.ethereum.vm.program.ProgramResult;
+import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.ArgumentMatcher;
+import org.mockito.Matchers;
 import org.mockito.Mockito;
 import org.spongycastle.util.encoders.Hex;
-import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 
 import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-
-import static org.mockito.Matchers.argThat;
-import static org.mockito.Matchers.eq;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Created by Ruben Altman on 09/06/2016.
@@ -62,42 +62,42 @@ import static org.mockito.Matchers.eq;
 public class Web3ImplTest {
     @Test
     public void web3_clientVersion() throws Exception {
-        Web3 web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3 web3 = createWeb3();
 
         String clientVersion = web3.web3_clientVersion();
 
-        Assert.isTrue(clientVersion.toLowerCase().contains("rsk"), "client version is not including rsk!");
+        Assert.assertTrue("client version is not including rsk!", clientVersion.toLowerCase().contains("rsk"));
     }
 
     @Test
     public void net_version() throws Exception {
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.worldManager = new SimpleWorldManager();
 
         String netVersion = web3.net_version();
 
-        Assert.isTrue(netVersion.compareTo(Byte.toString(RskSystemProperties.CONFIG.getBlockchainConfig().getCommonConstants().getChainId())) == 0, "RSK net version different than expected");
+        Assert.assertTrue("RSK net version different than expected", netVersion.compareTo(Byte.toString(RskSystemProperties.CONFIG.getBlockchainConfig().getCommonConstants().getChainId())) == 0);
     }
 
     @Test
     public void eth_protocolVersion() throws Exception {
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.worldManager = new SimpleWorldManager();
 
         String netVersion = web3.eth_protocolVersion();
 
-        Assert.isTrue(netVersion.compareTo("1") == 0, "RSK net version different than one");
+        Assert.assertTrue("RSK net version different than one", netVersion.compareTo("1") == 0);
     }
 
 
     @Test
     public void net_peerCount() throws Exception {
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.worldManager = new SimpleWorldManager();
 
         String peerCount  = web3.net_peerCount();
 
-        Assert.isTrue(peerCount.compareTo("0x2") == 0, "Different number of peers than expected");
+        Assert.assertTrue("Different number of peers than expected", peerCount.compareTo("0x2") == 0);
     }
 
 
@@ -105,18 +105,18 @@ public class Web3ImplTest {
     public void web3_sha3() throws Exception {
         String toHash = "RSK";
 
-        Web3 web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3 web3 = createWeb3();
 
         String result = web3.web3_sha3(toHash);
 
         // Function must apply the Keccak-256 algorithm
         // Result taken from https://emn178.github.io/online-tools/keccak_256.html
-        Assert.isTrue(result.compareTo("0x80553b6b348ae45ab8e8bf75e77064818c0a772f13cf8d3a175d3815aec59b56") == 0, "hash does not match");
+        Assert.assertTrue("hash does not match", result.compareTo("0x80553b6b348ae45ab8e8bf75e77064818c0a772f13cf8d3a175d3815aec59b56") == 0);
     }
 
     @Test
     public void eth_syncing_returnFalseWhenNotSyncing()  {
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.worldManager = new SimpleWorldManager();
         SimpleBlockProcessor nodeProcessor = new SimpleBlockProcessor();
         nodeProcessor.lastKnownBlockNumber = 0;
@@ -125,13 +125,13 @@ public class Web3ImplTest {
 
         Object result = web3.eth_syncing();
 
-        Assert.isTrue(!(boolean)result, "Node is not syncing, must return false");
+        Assert.assertTrue("Node is not syncing, must return false", !(boolean)result);
     }
 
     @Test
     public void eth_syncing_returnSyncingResultWhenSyncing()  {
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.worldManager = new SimpleWorldManager();
         SimpleBlockProcessor nodeProcessor = new SimpleBlockProcessor();
         nodeProcessor.lastKnownBlockNumber = 5;
@@ -140,9 +140,9 @@ public class Web3ImplTest {
 
         Object result = web3.eth_syncing();
 
-        Assert.isTrue(result instanceof Web3.SyncingResult, "Node is syncing, must return sync manager");
-        Assert.isTrue(((Web3.SyncingResult)result).highestBlock.compareTo("0x5") == 0, "Highest block is 5");
-        Assert.isTrue(((Web3.SyncingResult)result).currentBlock.compareTo("0x0") == 0, "Simple blockchain starts from genesis block");
+        Assert.assertTrue("Node is syncing, must return sync manager", result instanceof Web3.SyncingResult);
+        Assert.assertTrue("Highest block is 5", ((Web3.SyncingResult)result).highestBlock.compareTo("0x5") == 0);
+        Assert.assertTrue("Simple blockchain starts from genesis block", ((Web3.SyncingResult)result).currentBlock.compareTo("0x0") == 0);
     }
 
     @Test
@@ -150,7 +150,7 @@ public class Web3ImplTest {
         World world = new World();
         Account acc1 = new AccountBuilder(world).name("acc1").balance(BigInteger.valueOf(10000)).build();
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
 
         web3.repository = (Repository) world.getBlockChain().getRepository();
         SimpleWorldManager worldManager = new SimpleWorldManager();
@@ -165,7 +165,7 @@ public class Web3ImplTest {
         World world = new World();
         Account acc1 = new AccountBuilder(world).name("acc1").balance(BigInteger.valueOf(10000)).build();
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
 
         web3.repository = (Repository) world.getBlockChain().getRepository();
         SimpleWorldManager worldManager = new SimpleWorldManager();
@@ -180,7 +180,7 @@ public class Web3ImplTest {
         World world = new World();
         Account acc1 = new AccountBuilder(world).name("acc1").balance(BigInteger.valueOf(10000)).build();
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
 
         web3.repository = (Repository) world.getBlockChain().getRepository();
         SimpleWorldManager worldManager = new SimpleWorldManager();
@@ -202,7 +202,7 @@ public class Web3ImplTest {
         Block block1 = new BlockBuilder().parent(genesis).build();
         world.getBlockChain().tryToConnect(block1);
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
 
         web3.repository = (Repository) world.getBlockChain().getRepository();
         SimpleWorldManager worldManager = new SimpleWorldManager();
@@ -228,7 +228,7 @@ public class Web3ImplTest {
         Block block1 = new BlockBuilder(world).parent(genesis).transactions(txs).build();
         org.junit.Assert.assertEquals(ImportResult.IMPORTED_BEST, world.getBlockChain().tryToConnect(block1));
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
 
         web3.repository = (Repository) world.getBlockChain().getRepository();
         SimpleWorldManager worldManager = new SimpleWorldManager();
@@ -251,21 +251,21 @@ public class Web3ImplTest {
         SimpleWorldManager worldManager = new SimpleWorldManager();
         worldManager.minerClient = new SimpleMinerClient();
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.worldManager = worldManager;
 
-        Assert.isTrue(!web3.eth_mining(), "Node is not mining");
+        Assert.assertTrue("Node is not mining", !web3.eth_mining());
 
         worldManager.minerClient.mine();
-        Assert.isTrue(web3.eth_mining(), "Node is mining");
+        Assert.assertTrue("Node is mining", web3.eth_mining());
 
         worldManager.minerClient.stop();
-        Assert.isTrue(!web3.eth_mining(), "Node is not mining");
+        Assert.assertTrue("Node is not mining", !web3.eth_mining());
     }
 
     @Test
     public void getGasPrice()  {
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.eth = new SimpleEthereum();
         String expectedValue = Hex.toHexString(new BigInteger("20000000000").toByteArray());
         expectedValue = "0x" + (expectedValue.startsWith("0") ? expectedValue.substring(1) : expectedValue);
@@ -274,7 +274,7 @@ public class Web3ImplTest {
 
     @Test
     public void sendRawTransaction() throws Exception {
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         SimpleEthereum eth = new SimpleEthereum();
         web3.eth = eth;
 
@@ -299,7 +299,7 @@ public class Web3ImplTest {
         SimpleWorldManager worldManager = new SimpleWorldManager();
         worldManager.setBlockchain(world.getBlockChain());
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.worldManager = worldManager;
 
         Account acc1 = new AccountBuilder().name("acc1").build();
@@ -308,7 +308,7 @@ public class Web3ImplTest {
 
         String hashString = Hex.toHexString(tx.getHash());
 
-        Assert.isNull(web3.eth_getTransactionReceipt(hashString));
+        Assert.assertNull(web3.eth_getTransactionReceipt(hashString));
     }
 
     @Test
@@ -318,7 +318,7 @@ public class Web3ImplTest {
         worldManager.setBlockchain(world.getBlockChain());
         worldManager.setBlockStore(world.getBlockChain().getBlockStore());
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.worldManager = worldManager;
 
         Account acc1 = new AccountBuilder(world).name("acc1").balance(BigInteger.valueOf(2000000)).build();
@@ -355,7 +355,7 @@ public class Web3ImplTest {
         worldManager.setBlockchain(world.getBlockChain());
         worldManager.setBlockStore(world.getBlockChain().getBlockStore());
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.worldManager = worldManager;
 
         Account acc1 = new AccountBuilder(world).name("acc1").balance(BigInteger.valueOf(2000000)).build();
@@ -375,7 +375,7 @@ public class Web3ImplTest {
 
         TransactionReceiptDTO tr = web3.eth_getTransactionReceipt(hashString);
 
-        Assert.isNull(tr);
+        Assert.assertNull(tr);
     }
 
     @Test
@@ -384,7 +384,7 @@ public class Web3ImplTest {
         SimpleWorldManager worldManager = new SimpleWorldManager();
         worldManager.setBlockchain(world.getBlockChain());
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.worldManager = worldManager;
 
         Account acc1 = new AccountBuilder(world).name("acc1").balance(BigInteger.valueOf(2000000)).build();
@@ -400,7 +400,7 @@ public class Web3ImplTest {
 
         TransactionResultDTO tr = web3.eth_getTransactionByHash(hashString);
 
-        Assert.notNull(tr);
+        Assert.assertNotNull(tr);
         org.junit.Assert.assertEquals("0x" + hashString, tr.hash);
 
         String blockHashString = "0x" + Hex.toHexString(block1.getHash());
@@ -416,7 +416,7 @@ public class Web3ImplTest {
         SimpleWorldManager worldManager = new SimpleWorldManager();
         worldManager.setBlockchain(world.getBlockChain());
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.worldManager = worldManager;
 
         Account acc1 = new AccountBuilder(world).name("acc1").balance(BigInteger.valueOf(2000000)).build();
@@ -431,7 +431,7 @@ public class Web3ImplTest {
 
         TransactionResultDTO tr = web3.eth_getTransactionByHash(hashString);
 
-        Assert.notNull(tr);
+        Assert.assertNotNull(tr);
 
         org.junit.Assert.assertEquals("0x" + hashString, tr.hash);
         org.junit.Assert.assertEquals("0", tr.nonce);
@@ -447,7 +447,7 @@ public class Web3ImplTest {
         SimpleWorldManager worldManager = new SimpleWorldManager();
         worldManager.setBlockchain(world.getBlockChain());
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.worldManager = worldManager;
 
         Account acc1 = new AccountBuilder(world).name("acc1").balance(BigInteger.valueOf(2000000)).build();
@@ -467,7 +467,7 @@ public class Web3ImplTest {
 
         TransactionResultDTO tr = web3.eth_getTransactionByHash(hashString);
 
-        Assert.isNull(tr);
+        Assert.assertNull(tr);
     }
 
     @Test
@@ -476,7 +476,7 @@ public class Web3ImplTest {
         SimpleWorldManager worldManager = new SimpleWorldManager();
         worldManager.setBlockchain(world.getBlockChain());
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.worldManager = worldManager;
 
         Account acc1 = new AccountBuilder(world).name("acc1").balance(BigInteger.valueOf(2000000)).build();
@@ -493,7 +493,7 @@ public class Web3ImplTest {
 
         TransactionResultDTO tr = web3.eth_getTransactionByBlockHashAndIndex(blockHashString, "0x0");
 
-        Assert.notNull(tr);
+        Assert.assertNotNull(tr);
         org.junit.Assert.assertEquals("0x" + hashString, tr.hash);
 
         org.junit.Assert.assertEquals("0x" + blockHashString, tr.blockHash);
@@ -505,7 +505,7 @@ public class Web3ImplTest {
         SimpleWorldManager worldManager = new SimpleWorldManager();
         worldManager.setBlockchain(world.getBlockChain());
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.worldManager = worldManager;
 
         Block genesis = world.getBlockChain().getBestBlock();
@@ -516,7 +516,7 @@ public class Web3ImplTest {
 
         TransactionResultDTO tr = web3.eth_getTransactionByBlockHashAndIndex(blockHashString, "0x0");
 
-        Assert.isNull(tr);
+        Assert.assertNull(tr);
     }
 
     @Test
@@ -525,7 +525,7 @@ public class Web3ImplTest {
         SimpleWorldManager worldManager = new SimpleWorldManager();
         worldManager.setBlockchain(world.getBlockChain());
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.worldManager = worldManager;
 
         Account acc1 = new AccountBuilder(world).name("acc1").balance(BigInteger.valueOf(2000000)).build();
@@ -542,7 +542,7 @@ public class Web3ImplTest {
 
         TransactionResultDTO tr = web3.eth_getTransactionByBlockNumberAndIndex("0x01", "0x0");
 
-        Assert.notNull(tr);
+        Assert.assertNotNull(tr);
         org.junit.Assert.assertEquals("0x" + hashString, tr.hash);
 
         org.junit.Assert.assertEquals("0x" + blockHashString, tr.blockHash);
@@ -554,7 +554,7 @@ public class Web3ImplTest {
         SimpleWorldManager worldManager = new SimpleWorldManager();
         worldManager.setBlockchain(world.getBlockChain());
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.worldManager = worldManager;
 
         Block genesis = world.getBlockChain().getBestBlock();
@@ -563,7 +563,7 @@ public class Web3ImplTest {
 
         TransactionResultDTO tr = web3.eth_getTransactionByBlockNumberAndIndex("0x1", "0x0");
 
-        Assert.isNull(tr);
+        Assert.assertNull(tr);
     }
 
     @Test
@@ -572,7 +572,7 @@ public class Web3ImplTest {
         SimpleWorldManager worldManager = new SimpleWorldManager();
         worldManager.setBlockchain(world.getBlockChain());
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.worldManager = worldManager;
         web3.repository = (Repository) world.getRepository();
 
@@ -589,12 +589,12 @@ public class Web3ImplTest {
 
         String count = web3.eth_getTransactionCount(accountAddress, "0x1");
 
-        Assert.notNull(count);
+        Assert.assertNotNull(count);
         org.junit.Assert.assertEquals("0x1", count);
 
         count = web3.eth_getTransactionCount(accountAddress, "0x0");
 
-        Assert.notNull(count);
+        Assert.assertNotNull(count);
         org.junit.Assert.assertEquals("0x0", count);
     }
 
@@ -604,7 +604,7 @@ public class Web3ImplTest {
         SimpleWorldManager worldManager = new SimpleWorldManager();
         worldManager.setBlockchain(world.getBlockChain());
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.worldManager = worldManager;
 
         Block genesis = world.getBlockChain().getBestBlock();
@@ -619,14 +619,14 @@ public class Web3ImplTest {
 
         Web3.BlockResult bresult = web3.eth_getBlockByNumber("0x1", false);
 
-        Assert.notNull(bresult);
+        Assert.assertNotNull(bresult);
 
         String blockHash = "0x" + Hex.toHexString(block1b.getHash());
         org.junit.Assert.assertEquals(blockHash, bresult.hash);
 
         bresult = web3.eth_getBlockByNumber("0x2", true);
 
-        Assert.notNull(bresult);
+        Assert.assertNotNull(bresult);
 
         blockHash = "0x" + Hex.toHexString(block2b.getHash());
         org.junit.Assert.assertEquals(blockHash, bresult.hash);
@@ -638,7 +638,7 @@ public class Web3ImplTest {
         SimpleWorldManager worldManager = new SimpleWorldManager();
         worldManager.setBlockchain(world.getBlockChain());
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.worldManager = worldManager;
 
         Block genesis = world.getBlockChain().getBestBlock();
@@ -653,7 +653,7 @@ public class Web3ImplTest {
 
         Web3.BlockInformationResult[] bresult = web3.eth_getBlocksByNumber("0x1");
 
-        Assert.notNull(bresult);
+        Assert.assertNotNull(bresult);
 
         org.junit.Assert.assertEquals(2, bresult.length);
         org.junit.Assert.assertEquals(TypeConverter.toJsonHex(block1.getHash()), bresult[0].hash);
@@ -666,7 +666,7 @@ public class Web3ImplTest {
         SimpleWorldManager worldManager = new SimpleWorldManager();
         worldManager.setBlockchain(world.getBlockChain());
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.worldManager = worldManager;
 
         Block genesis = world.getBlockChain().getBestBlock();
@@ -677,7 +677,7 @@ public class Web3ImplTest {
 
         Web3.BlockResult blockResult = web3.eth_getBlockByNumber("latest", false);
 
-        Assert.notNull(blockResult);
+        Assert.assertNotNull(blockResult);
         String blockHash = TypeConverter.toJsonHex(Hex.toHexString(block1.getHash()));
         org.junit.Assert.assertEquals(blockHash, blockResult.hash);
     }
@@ -688,7 +688,7 @@ public class Web3ImplTest {
         SimpleWorldManager worldManager = new SimpleWorldManager();
         worldManager.setBlockchain(world.getBlockChain());
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.worldManager = worldManager;
 
         Block genesis = world.getBlockChain().getBestBlock();
@@ -698,7 +698,7 @@ public class Web3ImplTest {
 
         Web3.BlockResult blockResult = web3.eth_getBlockByNumber("earliest", false);
 
-        Assert.notNull(blockResult);
+        Assert.assertNotNull(blockResult);
         String blockHash = TypeConverter.toJsonHex(genesis.getHash());
         org.junit.Assert.assertEquals(blockHash, blockResult.hash);
     }
@@ -709,12 +709,12 @@ public class Web3ImplTest {
         SimpleWorldManager worldManager = new SimpleWorldManager();
         worldManager.setBlockchain(world.getBlockChain());
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.worldManager = worldManager;
 
         Web3.BlockResult blockResult = web3.eth_getBlockByNumber("0x1234", false);
 
-        Assert.isNull(blockResult);
+        Assert.assertNull(blockResult);
     }
 
     @Test
@@ -723,7 +723,7 @@ public class Web3ImplTest {
         SimpleWorldManager worldManager = new SimpleWorldManager();
         worldManager.setBlockchain(world.getBlockChain());
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.worldManager = worldManager;
 
         Block genesis = world.getBlockChain().getBestBlock();
@@ -743,7 +743,7 @@ public class Web3ImplTest {
 
         Web3.BlockResult bresult = web3.eth_getBlockByHash(block1HashString, false);
 
-        Assert.notNull(bresult);
+        Assert.assertNotNull(bresult);
         org.junit.Assert.assertEquals(block1HashString, bresult.hash);
         org.junit.Assert.assertEquals("0x00", bresult.extraData);
         org.junit.Assert.assertEquals(0, bresult.transactions.length);
@@ -751,12 +751,12 @@ public class Web3ImplTest {
 
         bresult = web3.eth_getBlockByHash(block1bHashString, true);
 
-        Assert.notNull(bresult);
+        Assert.assertNotNull(bresult);
         org.junit.Assert.assertEquals(block1bHashString, bresult.hash);
 
         bresult = web3.eth_getBlockByHash(block2bHashString, true);
 
-        Assert.notNull(bresult);
+        Assert.assertNotNull(bresult);
         org.junit.Assert.assertEquals(block2bHashString, bresult.hash);
     }
 
@@ -766,7 +766,7 @@ public class Web3ImplTest {
         SimpleWorldManager worldManager = new SimpleWorldManager();
         worldManager.setBlockchain(world.getBlockChain());
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.worldManager = worldManager;
 
         Account acc1 = new AccountBuilder(world).name("acc1").balance(BigInteger.valueOf(220000)).build();
@@ -784,7 +784,7 @@ public class Web3ImplTest {
 
         Web3.BlockResult bresult = web3.eth_getBlockByHash(block1HashString, true);
 
-        Assert.notNull(bresult);
+        Assert.assertNotNull(bresult);
         org.junit.Assert.assertEquals(block1HashString, bresult.hash);
         org.junit.Assert.assertEquals(1, bresult.transactions.length);
         org.junit.Assert.assertEquals(block1HashString, ((TransactionResultDTO) bresult.transactions[0]).blockHash);
@@ -797,7 +797,7 @@ public class Web3ImplTest {
         SimpleWorldManager worldManager = new SimpleWorldManager();
         worldManager.setBlockchain(world.getBlockChain());
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.worldManager = worldManager;
 
         Account acc1 = new AccountBuilder(world).name("acc1").balance(BigInteger.valueOf(220000)).build();
@@ -815,7 +815,7 @@ public class Web3ImplTest {
 
         Web3.BlockResult bresult = web3.eth_getBlockByHash(block1HashString, false);
 
-        Assert.notNull(bresult);
+        Assert.assertNotNull(bresult);
         org.junit.Assert.assertEquals(block1HashString, bresult.hash);
         org.junit.Assert.assertEquals(1, bresult.transactions.length);
         org.junit.Assert.assertEquals(TypeConverter.toJsonHex(tx.getHash()), bresult.transactions[0]);
@@ -828,12 +828,12 @@ public class Web3ImplTest {
         SimpleWorldManager worldManager = new SimpleWorldManager();
         worldManager.setBlockchain(world.getBlockChain());
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.worldManager = worldManager;
 
         Web3.BlockResult blockResult = web3.eth_getBlockByHash("0x1234", false);
 
-        Assert.isNull(blockResult);
+        Assert.assertNull(blockResult);
     }
 
     @Test
@@ -842,7 +842,7 @@ public class Web3ImplTest {
         SimpleWorldManager worldManager = new SimpleWorldManager();
         worldManager.setBlockchain(world.getBlockChain());
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.worldManager = worldManager;
         web3.repository = (Repository) world.getRepository();
 
@@ -860,7 +860,7 @@ public class Web3ImplTest {
 
         String scode = web3.eth_getCode(accountAddress, "0x1");
 
-        Assert.notNull(scode);
+        Assert.assertNotNull(scode);
         org.junit.Assert.assertEquals("0x" + Hex.toHexString(code), scode);
     }
 
@@ -895,22 +895,10 @@ public class Web3ImplTest {
         Block block1 = new BlockBuilder(world).parent(genesis).transactions(txs).build();
         world.getBlockChain().tryToConnect(block1);
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3Mocked(world, block1);
+
         web3.personal_newAccountWithSeed("default");
         web3.personal_newAccountWithSeed("notDefault");
-
-        web3.repository = (Repository) world.getBlockChain().getRepository();
-        SimpleWorldManager worldManager = new SimpleWorldManager();
-        worldManager.setBlockchain(world.getBlockChain());
-        PendingState pendingState = new PendingStateImpl(world.getBlockChain(), world.getRepository(), world.getBlockChain().getBlockStore(), null, null, 10, 100);
-        worldManager.setPendingState(pendingState);
-        web3.worldManager = worldManager;
-
-        Ethereum ethMock = Mockito.mock(Ethereum.class);
-        ProgramResult res = new ProgramResult();
-        res.setHReturn(TypeConverter.stringHexToByteArray("0x0000000000000000000000000000000000000000000000000000000064617665"));
-        Mockito.when(ethMock.callConstantCallTransaction(argThat(new TransactionFromMatcher(tx.getSender())), eq(block1))).thenReturn(res);
-        web3.eth = ethMock;
 
         Web3.CallArguments argsForCall = new Web3.CallArguments();
         argsForCall.to = TypeConverter.toJsonHex(tx.getContractAddress());
@@ -952,22 +940,10 @@ public class Web3ImplTest {
         Block block1 = new BlockBuilder(world).parent(genesis).transactions(txs).build();
         world.getBlockChain().tryToConnect(block1);
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3Mocked(world, block1);
+
         web3.personal_newAccountWithSeed("default");
         web3.personal_newAccountWithSeed("notDefault");
-
-        web3.repository = (Repository) world.getBlockChain().getRepository();
-        SimpleWorldManager worldManager = new SimpleWorldManager();
-        worldManager.setBlockchain(world.getBlockChain());
-        PendingState pendingState = new PendingStateImpl(world.getBlockChain(), world.getRepository(), world.getBlockChain().getBlockStore(), null, null, 10, 100);
-        worldManager.setPendingState(pendingState);
-        web3.worldManager = worldManager;
-
-        Ethereum ethMock = Mockito.mock(Ethereum.class);
-        ProgramResult res = new ProgramResult();
-        res.setHReturn(TypeConverter.stringHexToByteArray("0x0000000000000000000000000000000000000000000000000000000064617665"));
-        Mockito.when(ethMock.callConstantCallTransaction(argThat(new TransactionFromMatcher(tx.getSender())), eq(block1))).thenReturn(res);
-        web3.eth = ethMock;
 
         Web3.CallArguments argsForCall = new Web3.CallArguments();
         argsForCall.from = TypeConverter.toJsonHex(acc1.getAddress());
@@ -985,7 +961,7 @@ public class Web3ImplTest {
         SimpleWorldManager worldManager = new SimpleWorldManager();
         worldManager.setBlockchain(world.getBlockChain());
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.worldManager = worldManager;
         web3.repository = (Repository) world.getRepository();
 
@@ -1006,13 +982,13 @@ public class Web3ImplTest {
         SimplePeerServer peerServer = new SimplePeerServer();
         eth.peerServer = peerServer;
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.eth = eth;
 
-        Assert.isTrue(!web3.net_listening(), "Node is not listening");
+        Assert.assertTrue("Node is not listening", !web3.net_listening());
 
         peerServer.isListening = true;
-        Assert.isTrue(web3.net_listening(), "Node is listening");
+        Assert.assertTrue("Node is listening", web3.net_listening());
     }
 
     @Test
@@ -1022,34 +998,33 @@ public class Web3ImplTest {
         worldManager.minerServer= new SimpleMinerServer();
         ((SimpleMinerServer) worldManager.minerServer).coinbase = originalCoibase;
 
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
         web3.worldManager = worldManager;
 
-        Assert.isTrue(web3.eth_coinbase().compareTo("0x" + originalCoibase) == 0, "Not returning coinbase specified on miner server");
+        Assert.assertTrue("Not returning coinbase specified on miner server", web3.eth_coinbase().compareTo("0x" + originalCoibase) == 0);
     }
 
     @Test
     public void eth_accounts()
     {
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
+        int originalAccounts = web3.personal_listAccounts().length;
 
         String addr1 = web3.personal_newAccountWithSeed("sampleSeed1");
         String addr2 = web3.personal_newAccountWithSeed("sampleSeed2");
 
-        String[] accounts = web3.eth_accounts();
+        Set<String> accounts = Arrays.stream(web3.eth_accounts()).collect(Collectors.toSet());
 
-        Assert.isTrue(accounts.length == 2, "Not all accounts are being retrieved");
-        String address1 = accounts[0];
-        String originalAddress = addr1;
+        Assert.assertEquals("Not all accounts are being retrieved", originalAccounts + 2, accounts.size());
 
-        Assert.isTrue(originalAddress.compareTo(address1) == 0, "Account 1 address is wrong");
-        Assert.isTrue(accounts[1].compareTo(addr2) == 0);
+        Assert.assertTrue(accounts.contains(addr1));
+        Assert.assertTrue(accounts.contains(addr2));
     }
 
     @Test
     public void eth_sign()
     {
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
 
         String addr1 = web3.personal_newAccountWithSeed("sampleSeed1");
         String addr2 = web3.personal_newAccountWithSeed("sampleSeed2");
@@ -1066,13 +1041,13 @@ public class Web3ImplTest {
 
         String expectedSignature = "0x" + web3.getAccount(addr1).getEcKey().sign(hash).r.toString() + web3.getAccount(addr1).getEcKey().sign(hash).s.toString() + web3.getAccount(addr1).getEcKey().sign(hash).v;
 
-        Assert.isTrue(expectedSignature.compareTo(signature) == 0, "Signature is not the same one returned by the key");
+        Assert.assertTrue("Signature is not the same one returned by the key", expectedSignature.compareTo(signature) == 0);
     }
 
     @Test
     public void createNewAccount()
     {
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
 
         String addr = web3.personal_newAccount("passphrase1");
 
@@ -1093,23 +1068,24 @@ public class Web3ImplTest {
     @Test
     public void listAccounts()
     {
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
+        int originalAccounts = web3.personal_listAccounts().length;
 
         String addr1 = web3.personal_newAccount("passphrase1");
         String addr2 = web3.personal_newAccount("passphrase2");
 
-        String[] addresses = web3.personal_listAccounts();
+        Set<String> addresses = Arrays.stream(web3.personal_listAccounts()).collect(Collectors.toSet());
 
         org.junit.Assert.assertNotNull(addresses);
-        org.junit.Assert.assertEquals(2, addresses.length);
-        org.junit.Assert.assertTrue(addr1.equals(addresses[0]) || addr1.equals(addresses[1]));
-        org.junit.Assert.assertTrue(addr2.equals(addresses[0]) || addr2.equals(addresses[1]));
+        org.junit.Assert.assertEquals(originalAccounts + 2, addresses.size());
+        org.junit.Assert.assertTrue(addresses.contains(addr1));
+        org.junit.Assert.assertTrue(addresses.contains(addr2));
     }
 
     @Test
     public void importAccountUsingRawKey()
     {
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
 
         ECKey eckey = new ECKey();
 
@@ -1130,7 +1106,7 @@ public class Web3ImplTest {
 
     @Test
     public void dumpRawKey() throws Exception {
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
 
         ECKey eckey = new ECKey();
 
@@ -1183,13 +1159,13 @@ public class Web3ImplTest {
 
         String expectedHash = TypeConverter.toJsonHex(tx.getHash());
 
-        Assert.isTrue(expectedHash.compareTo(txHash) == 0, "Method is not creating the expected transaction");
+        Assert.assertTrue("Method is not creating the expected transaction", expectedHash.compareTo(txHash) == 0);
     }
 
     @Test
     public void unlockAccount()
     {
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
 
         String addr = web3.personal_newAccount("passphrase1");
 
@@ -1207,7 +1183,7 @@ public class Web3ImplTest {
     @Test(expected = JsonRpcInvalidParamException.class)
     public void unlockAccountInvalidDuration()
     {
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
 
         String addr = web3.personal_newAccount("passphrase1");
 
@@ -1223,7 +1199,7 @@ public class Web3ImplTest {
     @Test
     public void lockAccount()
     {
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
+        Web3Impl web3 = createWeb3();
 
         String addr = web3.personal_newAccount("passphrase1");
 
@@ -1247,18 +1223,8 @@ public class Web3ImplTest {
     @Test
     public void eth_sendTransaction()
     {
-        Web3Impl web3 = new Web3Impl(null, WalletFactory.createWallet());
-        SimpleEthereum eth = new SimpleEthereum();
-        web3.eth = eth;
-        SimpleWorldManager worldManager = new SimpleWorldManager();
         BigInteger nonce = BigInteger.ONE;
-        PendingState pendingState = Mockito.mock(PendingState.class);
-        org.ethereum.core.Repository repository = Mockito.mock(org.ethereum.core.Repository.class);
-        Mockito.when(pendingState.getRepository()).thenReturn(repository);
-        Mockito.when(repository.getNonce(Mockito.any())).thenReturn(nonce);
-
-        worldManager.setPendingState(pendingState);
-        web3.worldManager =  worldManager;
+        Web3Impl web3 = createWeb3();
 
         // **** Initializes data ******************
         String addr1 = web3.personal_newAccountWithSeed("sampleSeed1");
@@ -1294,7 +1260,35 @@ public class Web3ImplTest {
 
         String expectedHash = TypeConverter.toJsonHex(tx.getHash());
 
-        Assert.isTrue(expectedHash.compareTo(txHash) == 0, "Method is not creating the expected transaction");
+        Assert.assertTrue("Method is not creating the expected transaction", expectedHash.compareTo(txHash) == 0);
+    }
+
+    private Web3Impl createWeb3() {
+        BigInteger nonce = BigInteger.ONE;
+        org.ethereum.core.Repository repository = Mockito.mock(org.ethereum.core.Repository.class);
+        Mockito.when(repository.getNonce(Mockito.any())).thenReturn(nonce);
+        PendingState pendingState = Mockito.mock(PendingState.class);
+        Mockito.when(pendingState.getRepository()).thenReturn(repository);
+        SimpleWorldManager worldManager = new SimpleWorldManager(pendingState);
+        return createWeb3(new SimpleEthereum(worldManager));
+    }
+
+    private Web3Impl createWeb3Mocked(World world, Block block1) {
+        SimpleWorldManager worldManager = new SimpleWorldManager();
+        worldManager.setBlockchain(world.getBlockChain());
+        PendingState pendingState = new PendingStateImpl(world.getBlockChain(), world.getRepository(), world.getBlockChain().getBlockStore(), null, null, 10, 100);
+        worldManager.setPendingState(pendingState);
+        Ethereum ethMock = Mockito.mock(Ethereum.class);
+        ProgramResult res = new ProgramResult();
+        res.setHReturn(TypeConverter.stringHexToByteArray("0x0000000000000000000000000000000000000000000000000000000064617665"));
+        Mockito.when(ethMock.callConstantCallTransaction(Matchers.any(), Matchers.eq(block1))).thenReturn(res);
+        Mockito.when(ethMock.getWorldManager()).thenReturn(worldManager);
+        return createWeb3(ethMock);
+    }
+
+    private Web3Impl createWeb3(Ethereum eth) {
+        Wallet wallet = WalletFactory.createWallet();
+        return new Web3RskImpl(eth, RskSystemProperties.CONFIG, wallet, new PersonalModuleWithWallet(eth, wallet), new EthModuleWithWallet(eth, wallet));
     }
 
     @Test

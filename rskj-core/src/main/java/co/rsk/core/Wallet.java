@@ -7,6 +7,8 @@ import java.util.List;
 public interface Wallet {
     List<byte[]> getAccountAddresses();
 
+    String[] getAccountAddressesAsHex();
+
     byte[] addAccount();
 
     byte[] addAccount(String passphrase);
